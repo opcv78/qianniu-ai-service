@@ -62,17 +62,18 @@ class QianniuRPA:
             return False
 
         try:
-            # 千牛主窗口类名可能是 "AliWorkbench" 或窗口标题包含 "千牛"
-            window = auto.WindowControl(Name="千牛", searchDepth=1)
-            if window.Exists(0, 0):
-                self.qianniu_window = window
-                print("[UIA] 已找到千牛窗口")
-                return True
+            # 千牛接待中心窗口格式: "[用户名]-接待中心"
+            for win in auto.GetRootControl().GetChildren():
+                name = win.Name
+                if name and ("接待中心" in name or "-接待中心" in name):
+                    self.qianniu_window = win
+                    print(f"[UIA] 已找到窗口: {name}")
+                    return True
 
             # 尝试其他可能的窗口名
             for win in auto.GetRootControl().GetChildren():
                 name = win.Name
-                if name and ("千牛" in name or "阿里旺旺" in name or "AliWorkbench" in name):
+                if name and ("千牛" in name or "阿里旺旺" in name):
                     self.qianniu_window = win
                     print(f"[UIA] 已找到窗口: {name}")
                     return True
