@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.expo/
+*.log
+.env
+.env.local
+.DS_Store
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Uploads (local dev)
+apps/server/uploads/*
+!apps/server/uploads/.gitkeep
+
+# Mobile
+apps/mobile/.expo/
+apps/mobile/web-build/

@@ -4,7 +4,7 @@ import yaml
 from pathlib import Path
 from typing import List, Optional
 
-from langchain.text_splitter import MarkdownHeaderTextSplitter
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 

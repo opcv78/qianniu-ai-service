@@ -1,0 +1,66 @@
+{
+  "success": true,
+  "majorType": "spatial",
+  "subType": "folding",
+  "confidence": 0.85,
+  "animationSupported": false,
+  "animationSupportLevel": "none",
+  "explanation": "这是一道经典的折叠类题目。观察展开图，可以看到有6个面，需要将其折叠成一个立方体。解题关键是要注意每个面的相对位置和折叠方向。建议使用半自动模式逐步验证每个面的折叠是否正确。",
+  "ruleSummary": {
+    "name": "折叠规律",
+    "description": "将平面展开图折叠成立方体",
+    "details": [
+      "展开图有6个面",
+      "需要注意面的相对位置",
+      "相邻面的折叠方向很重要"
+    ],
+    "keyElements": ["折叠方向", "面的对应关系"]
+  },
+  "animationPlan": {
+    "sceneType": "spatial_placeholder",
+    "steps": [
+      {
+        "id": "step-1-identify",
+        "action": "highlight",
+        "target": { "type": "whole" },
+        "durationMs": 1000,
+        "payload": { "color": "#FF9800", "opacity": 0.4 },
+        "narration": "识别为折叠类题目"
+      },
+      {
+        "id": "step-2-explain",
+        "action": "text_show",
+        "target": { "type": "whole" },
+        "durationMs": 2500,
+        "payload": { "text": "需要想象平面图形折叠成立体的过程" },
+        "narration": "需要想象平面图形折叠成立体的过程"
+      },
+      {
+        "id": "step-3-hint",
+        "action": "text_show",
+        "target": { "type": "whole" },
+        "durationMs": 3000,
+        "payload": { "text": "💡 建议进入半自动解析模式进行详细分析" },
+        "narration": "建议进入半自动解析模式进行详细分析"
+      }
+    ],
+    "finalAnswerHint": "请进入半自动模式查看详细解析",
+    "totalDurationMs": 6500
+  },
+  "semiAutoConfig": {
+    "enabled": true,
+    "mode": "folding",
+    "requiredUserActions": [
+      "选择要折叠的面",
+      "指定折叠方向",
+      "确认相邻面的位置关系"
+    ],
+    "helperText": "在半自动模式下，您可以逐步验证每个面的折叠是否正确",
+    "hintSteps": [
+      { "step": 1, "description": "首先确定主面（通常是有图案的面）" },
+      { "step": 2, "description": "根据折叠方向确定相邻面的位置" },
+      { "step": 3, "description": "验证选项中的立方体是否匹配" }
+    ]
+  },
+  "warnings": ["立体类题目建议使用半自动解析模式获得更准确的分析"]
+}

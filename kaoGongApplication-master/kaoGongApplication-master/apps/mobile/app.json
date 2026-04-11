@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "图推动态解析",
+    "slug": "kao-gong-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "kaogong",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF50"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kaogong.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4CAF50"
+      },
+      "package": "com.kaogong.app"
+    },
+    "plugins": ["expo-router"]
+  }
+}

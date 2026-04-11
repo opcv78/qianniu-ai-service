@@ -19,7 +19,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Build EXE
-        run: pyinstaller --onefile --name qianniu_ai_service --distpath ./dist --clean --noconfirm app_main.py
+        run: pyinstaller --onefile --name qianniu_ai_service --distpath ./dist --clean --noconfirm --hidden-import langchain_text_splitters --hidden-import langchain_openai --hidden-import langchain_community --hidden-import langchain_core --hidden-import chromadb --hidden-import openai --hidden-import tiktoken --hidden-import yaml --hidden-import keyboard --hidden-import pyautogui --hidden-import pyperclip app_main.py
 
       - name: Package release
         run: |

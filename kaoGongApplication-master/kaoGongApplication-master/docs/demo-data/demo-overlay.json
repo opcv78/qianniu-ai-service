@@ -1,0 +1,83 @@
+{
+  "success": true,
+  "majorType": "planar",
+  "subType": "overlay_xor",
+  "confidence": 0.88,
+  "animationSupported": true,
+  "animationSupportLevel": "full",
+  "explanation": "通过观察题目中的图形变化规律，可以发现这道题采用的是去同存异（异或）规律。两个图形叠加时，相同的部分消失，不同的部分保留。这是叠加类题目中的经典规律。",
+  "ruleSummary": {
+    "name": "去同存异规律",
+    "description": "两个图形叠加，相同部分消失，不同部分保留",
+    "details": [
+      "第一幅图和第二幅图叠加",
+      "相同的线条消失",
+      "不同的线条保留"
+    ],
+    "keyElements": ["叠加方式: 去同存异", "运算类型: 异或"]
+  },
+  "animationPlan": {
+    "sceneType": "planar_grid",
+    "steps": [
+      {
+        "id": "step-1-highlight-first",
+        "action": "highlight",
+        "target": { "type": "cell", "index": [0, 0] },
+        "durationMs": 800,
+        "payload": { "color": "#FF6B6B", "opacity": 0.6, "borderWidth": 3 },
+        "narration": "首先观察第一个图形"
+      },
+      {
+        "id": "step-2-highlight-second",
+        "action": "highlight",
+        "target": { "type": "cell", "index": [0, 1] },
+        "durationMs": 800,
+        "payload": { "color": "#4CAF50", "opacity": 0.6, "borderWidth": 3 },
+        "narration": "然后观察第二个图形"
+      },
+      {
+        "id": "step-3-overlay-hint",
+        "action": "text_show",
+        "target": { "type": "whole" },
+        "durationMs": 1000,
+        "payload": { "text": "去同存异：保留两个图形不同的部分" },
+        "narration": "去同存异：保留两个图形不同的部分"
+      },
+      {
+        "id": "step-4-overlay-show",
+        "action": "overlay_show",
+        "target": { "type": "cell", "index": [0, 2] },
+        "durationMs": 600,
+        "payload": { "sources": [[0, 0], [0, 1]], "resultPosition": [0, 2], "opacity": 0.5 },
+        "narration": "将两个图形叠加"
+      },
+      {
+        "id": "step-5-overlay-merge",
+        "action": "overlay_merge",
+        "target": { "type": "cell", "index": [0, 2] },
+        "durationMs": 1000,
+        "payload": { "sources": [[0, 0], [0, 1]], "resultPosition": [0, 2] },
+        "narration": "执行去同存异操作"
+      },
+      {
+        "id": "step-6-highlight-result",
+        "action": "highlight",
+        "target": { "type": "cell", "index": [0, 2] },
+        "durationMs": 800,
+        "payload": { "color": "#2196F3", "opacity": 0.5, "borderWidth": 3 },
+        "narration": "叠加后的结果"
+      },
+      {
+        "id": "step-7-summary",
+        "action": "text_show",
+        "target": { "type": "whole" },
+        "durationMs": 2000,
+        "payload": { "text": "规律：去同存异" },
+        "narration": "规律：去同存异"
+      }
+    ],
+    "finalAnswerHint": "选择去同存异后的图形",
+    "totalDurationMs": 7000,
+    "gridConfig": { "rows": 3, "cols": 3 }
+  }
+}

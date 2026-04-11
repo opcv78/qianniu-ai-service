@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "majorType": "planar",
+  "subType": "position_move",
+  "confidence": 0.95,
+  "animationSupported": true,
+  "animationSupportLevel": "full",
+  "explanation": "通过观察题目中的图形变化规律，可以发现每个图形元素都是在前一个元素的基础上向右移动一格。这是一个典型的位置移动规律题，解题关键是识别移动方向和步长。",
+  "ruleSummary": {
+    "name": "位置移动规律",
+    "description": "图形元素在九宫格中按照固定方向和步长移动",
+    "details": [
+      "观察第一行，元素从左向右移动一格",
+      "移动步长固定为1格",
+      "移动方向为从左到右"
+    ],
+    "keyElements": ["移动方向: 向右", "移动步长: 1格"]
+  },
+  "animationPlan": {
+    "sceneType": "planar_grid",
+    "steps": [
+      {
+        "id": "step-1-highlight",
+        "action": "highlight",
+        "target": { "type": "cell", "index": [0, 0] },
+        "durationMs": 800,
+        "payload": { "color": "#FF6B6B", "opacity": 0.5 },
+        "narration": "首先观察第一行第一个元素的位置"
+      },
+      {
+        "id": "step-2-arrow",
+        "action": "arrow_show",
+        "target": { "type": "cell", "index": [0, 0] },
+        "durationMs": 600,
+        "payload": { "start": [0.2, 0.5], "end": [0.8, 0.5], "color": "#4CAF50" },
+        "narration": "元素向右移动一格"
+      },
+      {
+        "id": "step-3-move",
+        "action": "move",
+        "target": { "type": "cell", "index": [0, 0] },
+        "durationMs": 800,
+        "payload": { "from": [0, 0], "to": [0, 1], "deltaX": 1, "deltaY": 0 },
+        "narration": "移动到第二列"
+      },
+      {
+        "id": "step-4-highlight-result",
+        "action": "highlight",
+        "target": { "type": "cell", "index": [0, 1] },
+        "durationMs": 600,
+        "payload": { "color": "#4CAF50", "opacity": 0.3 },
+        "narration": "完成移动"
+      },
+      {
+        "id": "step-5-summary",
+        "action": "text_show",
+        "target": { "type": "whole" },
+        "durationMs": 2000,
+        "payload": { "text": "规律：每步向右移动一格" },
+        "narration": "规律：每步向右移动一格"
+      }
+    ],
+    "finalAnswerHint": "选择向右移动一格后的图形",
+    "totalDurationMs": 4800,
+    "gridConfig": { "rows": 3, "cols": 3 }
+  }
+}
