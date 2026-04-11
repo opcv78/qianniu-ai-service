@@ -1,0 +1,34 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build EXE
+        run: pyinstaller --onefile --name qianniu_ai_service --distpath ./dist --clean --noconfirm app_main.py
+
+      - name: Package release
+        run: |
+          mkdir release
+          copy dist\qianniu_ai_service.exe release\
+          copy config.yaml release\
+          xcopy /E /I /Y data release\data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qianniu-ai-service
+          path: release/

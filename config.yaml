@@ -1,0 +1,31 @@
+# AI 客服系统配置文件
+
+llm:
+  api_key: "YOUR_API_KEY_HERE"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4o-mini"
+
+rpa:
+  # 千牛聊天消息列表区域左上角坐标
+  chat_list_x: 100
+  chat_list_y: 200
+  # 千牛消息输入框坐标
+  input_box_x: 300
+  input_box_y: 600
+  # 发送按钮坐标
+  send_btn_x: 500
+  send_btn_y: 600
+  # 轮询间隔(秒)
+  poll_interval: 3
+
+knowledge:
+  # FAQ 知识库路径
+  faq_path: "data/faq.md"
+  # 向量库持久化路径
+  chroma_persist_dir: "data/chroma_db"
+  # embedding 模型
+  embedding_model: "text-embedding-3-small"
+
+hotkey:
+  # 全局退出热键
+  exit_key: "esc"
