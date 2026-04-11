@@ -93,8 +93,8 @@ class QianniuRPA:
             pyautogui.hotkey("ctrl", "v")
             self._random_delay(0.5, 1.0)  # 打字机延迟
 
-            # 发送（Enter 或点击发送按钮）
-            pyautogui.press("enter")
+            # 点击发送按钮
+            self._click_at(self.send_btn_x, self.send_btn_y)
             self._random_delay(0.2, 0.4)
 
         except Exception as e:

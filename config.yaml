@@ -1,20 +1,20 @@
 # AI 客服系统配置文件
 
 llm:
-  api_key: "YOUR_API_KEY_HERE"
-  base_url: "https://api.openai.com/v1"
-  model: "gpt-4o-mini"
+  api_key: "YOUR_JINGDONG_API_KEY"
+  base_url: "https://api.jdcloud.com/v1"  # 京东云大模型API地址
+  model: "jdcloud-model-name"  # 京东云模型名称
 
 rpa:
-  # 千牛聊天消息列表区域左上角坐标
-  chat_list_x: 100
-  chat_list_y: 200
-  # 千牛消息输入框坐标
-  input_box_x: 300
-  input_box_y: 600
+  # 千牛聊天消息列表区域坐标（点击读取消息）
+  chat_list_x: 1200
+  chat_list_y: 640
+  # 千牛消息输入框坐标（点击输入）
+  input_box_x: 1202
+  input_box_y: 958
   # 发送按钮坐标
-  send_btn_x: 500
-  send_btn_y: 600
+  send_btn_x: 1405
+  send_btn_y: 1076
   # 轮询间隔(秒)
   poll_interval: 3
 
