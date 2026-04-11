@@ -9,7 +9,6 @@ __pycache__/
 .idea/
 .vscode/
 *.log
-*.spec
 .kaoGongApplication-master/
 kaoGongApplication-master.zip
 smart-classroom/
