@@ -19,12 +19,16 @@ rpa:
   poll_interval: 3
 
 knowledge:
+  # Embedding 类型: "local" (本地HuggingFace) 或 "openai" (API)
+  embedding_type: "local"
+  # 本地 embedding 模型 (支持中文)
+  local_embedding_model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  # OpenAI embedding 模型 (仅当 embedding_type: "openai" 时使用)
+  embedding_model: "text-embedding-3-small"
   # FAQ 知识库路径
   faq_path: "data/faq.md"
   # 向量库持久化路径
   chroma_persist_dir: "data/chroma_db"
-  # embedding 模型
-  embedding_model: "text-embedding-3-small"
 
 hotkey:
   # 全局退出热键

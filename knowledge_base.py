@@ -5,8 +5,20 @@ from pathlib import Path
 from typing import List, Optional
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter
-from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+
+# Embedding 支持多种方式
+try:
+    from langchain_openai import OpenAIEmbeddings
+    OPENAI_EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    OPENAI_EMBEDDINGS_AVAILABLE = False
+
+try:
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    HF_EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    HF_EMBEDDINGS_AVAILABLE = False
 
 
 class FAQManager:
@@ -22,14 +34,34 @@ class FAQManager:
         with open(config_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
-    def _init_embeddings(self) -> OpenAIEmbeddings:
+    def _init_embeddings(self):
+        """初始化 Embedding 模型，支持 OpenAI API 或本地 HuggingFace"""
         kb_config = self.config.get("knowledge", {})
         llm_config = self.config.get("llm", {})
-        return OpenAIEmbeddings(
-            model=kb_config.get("embedding_model", "text-embedding-3-small"),
-            openai_api_key=llm_config.get("api_key"),
-            openai_api_base=llm_config.get("base_url"),
-        )
+        embedding_type = kb_config.get("embedding_type", "local")  # 默认使用本地
+
+        if embedding_type == "openai" and OPENAI_EMBEDDINGS_AVAILABLE:
+            # 使用 OpenAI API embeddings
+            try:
+                return OpenAIEmbeddings(
+                    model=kb_config.get("embedding_model", "text-embedding-3-small"),
+                    openai_api_key=llm_config.get("api_key"),
+                    openai_api_base=llm_config.get("base_url"),
+                )
+            except Exception as e:
+                print(f"[KB Error] OpenAI Embeddings 初始化失败: {e}")
+                print("[KB] 切换到本地 HuggingFace Embeddings...")
+
+        # 使用本地 HuggingFace embeddings（无需 API）
+        if HF_EMBEDDINGS_AVAILABLE:
+            print("[KB] 使用本地 HuggingFace Embeddings (sentence-transformers)")
+            return HuggingFaceEmbeddings(
+                model_name=kb_config.get("local_embedding_model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"),
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+
+        raise ImportError("无法初始化任何 Embedding 模型，请安装 langchain-openai 或 langchain-community")
 
     def _load_and_split_faq(self) -> List:
         """加载 Markdown 并按标题切割"""
