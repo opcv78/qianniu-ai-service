@@ -30,6 +30,10 @@ class QianniuRPA:
         self.qianniu_window = None
         self.last_message_text = ""
 
+        # 发送消息记录（用于过滤自己发的消息）
+        self.sent_messages: List[str] = []
+        self.max_sent_history = 20  # 保留最近20条发送记录
+
         if UIA_AVAILABLE:
             self._find_qianniu_window()
 
@@ -104,12 +108,27 @@ class QianniuRPA:
                         if text_ctrl and text_ctrl.Name:
                             msg_text = text_ctrl.Name.strip()
                             if msg_text:
-                                # 尝试判断消息来源（客户 vs 客服）
-                                # 千牛通常用不同控件或样式区分
+                                # 判断消息来源：通过控件位置
+                                # 客户消息通常在左侧，客服消息在右侧
+                                rect = item.BoundingRectangle
+                                window_rect = self.qianniu_window.BoundingRectangle
+
+                                # 计算消息在窗口中的相对位置
+                                window_center_x = (window_rect.left + window_rect.right) / 2
+                                msg_center_x = (rect.left + rect.right) / 2
+
+                                # 如果消息中心点在窗口左半部分，判断为客户消息
+                                is_customer = msg_center_x < window_center_x
+
+                                # 过滤掉自己发送的消息（通过发送记录）
+                                if msg_text in self.sent_messages:
+                                    continue
+
                                 messages.append({
                                     "text": msg_text,
-                                    "is_customer": True,  # 默认假设是客户消息
-                                    "control": item
+                                    "is_customer": is_customer,
+                                    "control": item,
+                                    "position": "left" if is_customer else "right"
                                 })
                     except:
                         continue
@@ -124,9 +143,12 @@ class QianniuRPA:
                             if hasattr(tc, 'Name') and tc.Name:
                                 msg_text = tc.Name.strip()
                                 if msg_text and len(msg_text) > 0:
+                                    # 过滤掉自己发送的消息
+                                    if msg_text in self.sent_messages:
+                                        continue
                                     messages.append({
                                         "text": msg_text,
-                                        "is_customer": True
+                                        "is_customer": True  # 默认，无法判断位置时假设是客户
                                     })
                     except:
                         continue
@@ -140,19 +162,30 @@ class QianniuRPA:
         """
         读取聊天区最新消息
         使用 UI Automation 或剪贴板方法
+        只返回客户发的消息（过滤自己发送的）
         """
         # 优先使用 UI Automation
         if UIA_AVAILABLE and self.qianniu_window:
             try:
                 messages = self._get_chat_messages()
                 if messages:
-                    # 获取最后一条文本消息（过滤图片表情）
+                    # 获取最后一条客户消息（过滤图片表情和自己发的）
                     for msg in reversed(messages):
                         text = msg.get("text", "")
+                        is_customer = msg.get("is_customer", True)
+
+                        # 只处理客户消息，跳过自己发的消息
+                        if not is_customer:
+                            continue
+
                         # 过滤非文本内容（图片通常返回空或特殊字符）
                         if text and not text.startswith("[图片]") and not text.startswith("[表情]"):
+                            # 过滤掉发送记录中的消息
+                            if text in self.sent_messages:
+                                continue
                             if text != self.last_message_text:
                                 self.last_message_text = text
+                                print(f"[消息来源] {msg.get('position', 'unknown')}侧")
                                 return text
                     return None
             except Exception as e:
@@ -189,11 +222,17 @@ class QianniuRPA:
             return None
 
     def send_reply(self, text: str):
-        """发送回复消息"""
+        """发送回复消息，并记录发送内容用于过滤"""
         if not text:
             return
 
         try:
+            # 记录发送的消息（用于过滤自己发的消息）
+            self.sent_messages.append(text)
+            # 保持历史记录长度
+            if len(self.sent_messages) > self.max_sent_history:
+                self.sent_messages = self.sent_messages[-self.max_sent_history:]
+
             pyperclip.copy(text)
             self._random_delay(0.3, 0.6)
 
@@ -211,6 +250,9 @@ class QianniuRPA:
 
         except Exception as e:
             print(f"[RPA Error] 发送消息失败: {e}")
+            # 发送失败时移除记录
+            if text in self.sent_messages:
+                self.sent_messages.remove(text)
 
     def focus_window(self):
         """激活千牛窗口"""
