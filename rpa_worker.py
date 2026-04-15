@@ -1,9 +1,13 @@
 # RPA 自动化控制模块
+# 双重保险方案：内存对比法 + 剪贴板文本清洗法
 
 import time
 import random
 import yaml
-from typing import Optional, List
+import re
+from typing import Optional, List, Dict
+from datetime import datetime, timedelta
+from collections import deque
 
 import pyautogui
 import pyperclip
@@ -16,7 +20,10 @@ except ImportError:
 
 
 class QianniuRPA:
-    """千牛桌面客户端 RPA 控制器"""
+    """千牛桌面客户端 RPA 控制器 - 双重保险消息识别"""
+
+    # 客服账号昵称特征（用于识别自己发送的消息）
+    AGENT_NICKNAME = "[梨花重放的小店95]"
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config = self._load_config(config_path)
@@ -28,14 +35,24 @@ class QianniuRPA:
 
         # UI Automation 窗口缓存
         self.qianniu_window = None
-        self.last_message_text = ""
 
-        # 发送消息记录（用于过滤自己发的消息）
-        self.sent_messages: List[str] = []
-        self.max_sent_history = 20  # 保留最近20条发送记录
+        # ========== 双重保险方案一：内存对比法 ==========
+        # 发送消息队列（使用 deque 自动限制长度）
+        self.sent_messages_queue: deque = deque(maxlen=100)
+        # 发送时间记录（用于时间窗口过滤）
+        self.last_send_time: Optional[datetime] = None
+        # 自消息过滤时间窗口（秒）
+        self.self_message_window = 5.0
+
+        # ========== 状态追踪 ==========
+        self.last_processed_message = ""
+        self.last_message_hash = ""
 
         if UIA_AVAILABLE:
             self._find_qianniu_window()
+
+        print(f"[RPA] 客服昵称标识: {self.AGENT_NICKNAME}")
+        print(f"[RPA] 自消息过滤窗口: {self.self_message_window}秒")
 
     def _load_config(self, config_path: str) -> dict:
         with open(config_path, "r", encoding="utf-8") as f:
@@ -69,7 +86,7 @@ class QianniuRPA:
             # 千牛接待中心窗口格式: "[用户名]-接待中心"
             for win in auto.GetRootControl().GetChildren():
                 name = win.Name
-                if name and ("接待中心" in name or "-接待中心" in name):
+                if name and "-接待中心" in name:
                     self.qianniu_window = win
                     print(f"[UIA] 已找到窗口: {name}")
                     return True
@@ -88,151 +105,251 @@ class QianniuRPA:
             print(f"[UIA Error] 查找窗口失败: {e}")
             return False
 
-    def _get_chat_messages(self) -> List[dict]:
-        """通过 UI Automation 获取聊天消息列表"""
-        if not UIA_AVAILABLE or not self.qianniu_window:
-            return []
+    # ========== 方案一：内存对比法 ==========
 
-        messages = []
-        try:
-            # 查找聊天消息列表控件（通常是 List 或 Panel 类型）
-            # 千牛的消息控件结构需要实际调试确认
-            chat_list = self.qianniu_window.ListControl(searchDepth=10)
+    def _normalize_text(self, text: str) -> str:
+        """文本标准化（用于比较）"""
+        # 移除多余空格、换行
+        text = re.sub(r'\s+', ' ', text.strip())
+        # 移除常见的消息前缀标记
+        text = re.sub(r'^\[.*?\]\s*', '', text)
+        return text.lower()
 
-            if chat_list and chat_list.Exists(0, 0):
-                # 遍历消息项
-                for item in chat_list.GetChildren():
-                    try:
-                        # 获取消息文本
-                        text_ctrl = item.TextControl(searchDepth=5)
-                        if text_ctrl and text_ctrl.Name:
-                            msg_text = text_ctrl.Name.strip()
-                            if msg_text:
-                                # 判断消息来源：通过控件位置
-                                # 客户消息通常在左侧，客服消息在右侧
-                                rect = item.BoundingRectangle
-                                window_rect = self.qianniu_window.BoundingRectangle
+    def _is_in_sent_queue(self, text: str) -> bool:
+        """检查消息是否在发送队列中（内存对比法）"""
+        normalized = self._normalize_text(text)
 
-                                # 计算消息在窗口中的相对位置
-                                window_center_x = (window_rect.left + window_rect.right) / 2
-                                msg_center_x = (rect.left + rect.right) / 2
+        for record in self.sent_messages_queue:
+            sent_normalized = self._normalize_text(record.get("text", ""))
 
-                                # 如果消息中心点在窗口左半部分，判断为客户消息
-                                is_customer = msg_center_x < window_center_x
+            # 完全匹配
+            if normalized == sent_normalized:
+                print(f"[内存对比] 完全匹配拦截: '{text[:30]}...'")
+                return True
 
-                                # 过滤掉自己发送的消息（通过发送记录）
-                                if msg_text in self.sent_messages:
-                                    continue
+            # 部分匹配（防止消息有微小差异）
+            if len(normalized) > 10 and normalized in sent_normalized:
+                print(f"[内存对比] 包含匹配拦截: '{text[:30]}...'")
+                return True
 
-                                messages.append({
-                                    "text": msg_text,
-                                    "is_customer": is_customer,
-                                    "control": item,
-                                    "position": "left" if is_customer else "right"
-                                })
-                    except:
-                        continue
+            if len(sent_normalized) > 10 and sent_normalized in normalized:
+                print(f"[内存对比] 反包含匹配拦截: '{text[:30]}...'")
+                return True
 
-            # 如果找不到 List，尝试直接查找所有 Text 控件
-            if not messages:
-                text_controls = self.qianniu_window.GetChildren()
-                for ctrl in text_controls:
-                    try:
-                        text_ctrls = ctrl.GetFirstChildControl().GetChildren() if ctrl.GetFirstChildControl() else []
-                        for tc in text_ctrls:
-                            if hasattr(tc, 'Name') and tc.Name:
-                                msg_text = tc.Name.strip()
-                                if msg_text and len(msg_text) > 0:
-                                    # 过滤掉自己发送的消息
-                                    if msg_text in self.sent_messages:
-                                        continue
-                                    messages.append({
-                                        "text": msg_text,
-                                        "is_customer": True  # 默认，无法判断位置时假设是客户
-                                    })
-                    except:
-                        continue
+        return False
 
-        except Exception as e:
-            print(f"[UIA Error] 获取消息失败: {e}")
+    def _is_in_time_window(self) -> bool:
+        """检查是否在发送时间窗口内"""
+        if self.last_send_time is None:
+            return False
 
-        return messages
+        elapsed = (datetime.now() - self.last_send_time).total_seconds()
+        return elapsed < self.self_message_window
 
-    def read_latest_message(self) -> Optional[str]:
+    def _record_sent_message(self, text: str):
+        """记录发送的消息到队列"""
+        record = {
+            "text": text,
+            "time": datetime.now(),
+            "hash": hash(text)
+        }
+        self.sent_messages_queue.append(record)
+        self.last_send_time = datetime.now()
+        print(f"[发送记录] 已记录消息: '{text[:40]}...' (队列长度: {len(self.sent_messages_queue)})")
+
+    # ========== 方案二：剪贴板文本清洗法 ==========
+
+    def _clean_clipboard_text(self, raw_text: str) -> Optional[str]:
         """
-        读取聊天区最新消息
-        使用 UI Automation 或剪贴板方法
-        只返回客户发的消息（过滤自己发送的）
+        清洗剪贴板文本，过滤客服自己发送的消息段落
+
+        千牛聊天记录格式通常为：
+        [客服昵称] 2024-01-01 10:00:00
+        客服发送的内容
+
+        [客户昵称] 2024-01-01 10:01:00
+        客户发送的内容
         """
-        # 优先使用 UI Automation
-        if UIA_AVAILABLE and self.qianniu_window:
-            try:
-                messages = self._get_chat_messages()
-                if messages:
-                    # 获取最后一条客户消息（过滤图片表情和自己发的）
-                    for msg in reversed(messages):
-                        text = msg.get("text", "")
-                        is_customer = msg.get("is_customer", True)
+        if not raw_text or not raw_text.strip():
+            return None
 
-                        # 只处理客户消息，跳过自己发的消息
-                        if not is_customer:
-                            continue
+        lines = raw_text.strip().split('\n')
+        customer_messages = []
 
-                        # 过滤非文本内容（图片通常返回空或特殊字符）
-                        if text and not text.startswith("[图片]") and not text.startswith("[表情]"):
-                            # 过滤掉发送记录中的消息
-                            if text in self.sent_messages:
-                                continue
-                            if text != self.last_message_text:
-                                self.last_message_text = text
-                                print(f"[消息来源] {msg.get('position', 'unknown')}侧")
-                                return text
-                    return None
-            except Exception as e:
-                print(f"[UIA Error] {e}")
+        # 状态追踪
+        current_sender = None
+        current_message_lines = []
 
-        # 备用方案：剪贴板方法
-        return self._read_via_clipboard()
+        # 消息发送者行模式：包含昵称和时间
+        # 例如: "[梨花重放的小店95] 2024-04-14 10:30:00" 或 "[梨花重放的小店95] 10:30"
+        sender_pattern = re.compile(r'^\[.+?\].*?\d{1,2}:\d{2}')
+
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+
+            # 检查是否是发送者标识行
+            if sender_pattern.match(line_stripped):
+                # 保存上一条消息
+                if current_sender and current_message_lines:
+                    msg_text = '\n'.join(current_message_lines).strip()
+                    if msg_text and current_sender != self.AGENT_NICKNAME:
+                        customer_messages.append(msg_text)
+
+                # 解析新发送者
+                if self.AGENT_NICKNAME in line_stripped:
+                    current_sender = self.AGENT_NICKNAME
+                    print(f"[文本清洗] 检测到客服消息行: '{line_stripped[:50]}...'")
+                else:
+                    current_sender = "customer"
+
+                current_message_lines = []
+            else:
+                # 消息内容行
+                current_message_lines.append(line_stripped)
+
+        # 处理最后一条消息
+        if current_sender and current_message_lines:
+            msg_text = '\n'.join(current_message_lines).strip()
+            if msg_text and current_sender != self.AGENT_NICKNAME:
+                customer_messages.append(msg_text)
+
+        # 返回最后一条客户消息
+        if customer_messages:
+            last_customer_msg = customer_messages[-1]
+            print(f"[文本清洗] 提取客户消息: '{last_customer_msg[:40]}...'")
+            return last_customer_msg
+
+        return None
+
+    def _is_agent_message_by_nickname(self, text: str) -> bool:
+        """通过客服昵称特征判断是否是自己发的消息"""
+        # 直接包含客服昵称
+        if self.AGENT_NICKNAME in text:
+            print(f"[昵称识别] 消息包含客服昵称: '{text[:50]}...'")
+            return True
+
+        # 消息以客服昵称开头（发送者标识）
+        if text.strip().startswith(self.AGENT_NICKNAME):
+            print(f"[昵称识别] 消息以客服昵称开头")
+            return True
+
+        # 消息中有客服昵称的发送者行格式
+        pattern = re.compile(rf'\[{re.escape(self.AGENT_NICKNAME)}\]|\[{re.escape(self.AGENT_NICKNAME)}\s*\d')
+        if pattern.search(text):
+            print(f"[昵称识别] 消息包含客服发送者标识格式")
+            return True
+
+        return False
+
+    # ========== 双重保险综合判断 ==========
+
+    def _is_self_message(self, text: str) -> bool:
+        """
+        双重保险判断：是否是自己发送的消息
+        1. 内存对比法：检查发送队列
+        2. 时间窗口法：发送后短时间内拦截
+        3. 昵称识别法：识别客服昵称特征
+        """
+        # 方法1: 内存对比法 - 检查发送队列
+        if self._is_in_sent_queue(text):
+            return True
+
+        # 方法2: 时间窗口法 - 发送后短时间内认为是自己的消息
+        if self._is_in_time_window():
+            # 在时间窗口内，再做一次模糊匹配
+            normalized = self._normalize_text(text)
+            for record in self.sent_messages_queue:
+                # 时间窗口内的记录
+                record_time = record.get("time", datetime.min)
+                if (datetime.now() - record_time).total_seconds() < self.self_message_window:
+                    sent_normalized = self._normalize_text(record.get("text", ""))
+                    # 相似度检查（简单的前缀匹配）
+                    if len(normalized) > 5 and len(sent_normalized) > 5:
+                        if normalized[:20] == sent_normalized[:20]:
+                            print(f"[时间窗口] 拦截相似消息: '{text[:30]}...'")
+                            return True
+            # 时间窗口内但无匹配记录，可能是客户快速回复
+            # 不拦截，继续检查
+
+        # 方法3: 昵称识别法 - 检查是否包含客服昵称
+        if self._is_agent_message_by_nickname(text):
+            return True
+
+        return False
 
     def _read_via_clipboard(self) -> Optional[str]:
-        """备用：通过剪贴板读取消息"""
+        """通过剪贴板读取消息（使用文本清洗法）"""
         try:
+            # 点击聊天区域
             self._click_at(self.chat_list_x, self.chat_list_y)
             self._random_delay(0.2, 0.4)
 
+            # 全选并复制
             pyautogui.hotkey("ctrl", "a")
             self._random_delay(0.2, 0.4)
             pyautogui.hotkey("ctrl", "c")
             self._random_delay(0.2, 0.4)
 
+            # 获取剪贴板内容
             clipboard_text = pyperclip.paste()
             if not clipboard_text:
                 return None
 
-            lines = [line.strip() for line in clipboard_text.split("\n") if line.strip()]
-            if lines:
-                last_line = lines[-1]
-                if last_line != self.last_message_text:
-                    self.last_message_text = last_line
-                    return last_line
-            return None
+            # 使用文本清洗法提取客户消息
+            clean_message = self._clean_clipboard_text(clipboard_text)
+
+            if not clean_message:
+                print("[剪贴板] 清洗后无有效客户消息")
+                return None
+
+            # 双重保险：再检查是否是自己发的
+            if self._is_self_message(clean_message):
+                print(f"[双重拦截] 剪贴板提取的消息被拦截: '{clean_message[:30]}...'")
+                return None
+
+            # 检查是否重复处理
+            if clean_message == self.last_processed_message:
+                return None
+
+            self.last_processed_message = clean_message
+            return clean_message
 
         except Exception as e:
             print(f"[RPA Error] 读取消息失败: {e}")
             return None
 
+    def read_latest_message(self) -> Optional[str]:
+        """
+        读取最新客户消息
+        使用双重保险方案过滤自己发送的消息
+        """
+        message = self._read_via_clipboard()
+
+        if message:
+            # 最终安全检查
+            if self._is_self_message(message):
+                return None
+
+            print(f"[收到消息] {message[:60]}...")
+            return message
+
+        return None
+
     def send_reply(self, text: str):
-        """发送回复消息，并记录发送内容用于过滤"""
+        """
+        发送回复消息
+        并使用内存对比法记录发送内容
+        """
         if not text:
             return
 
         try:
-            # 记录发送的消息（用于过滤自己发的消息）
-            self.sent_messages.append(text)
-            # 保持历史记录长度
-            if len(self.sent_messages) > self.max_sent_history:
-                self.sent_messages = self.sent_messages[-self.max_sent_history:]
+            # 方案一：记录到发送队列（内存对比法）
+            self._record_sent_message(text)
 
+            # 执行发送
             pyperclip.copy(text)
             self._random_delay(0.3, 0.6)
 
@@ -245,14 +362,15 @@ class QianniuRPA:
             self._click_at(self.send_btn_x, self.send_btn_y)
             self._random_delay(0.2, 0.4)
 
-            # 清空上次消息记录（发送后重置）
-            self.last_message_text = ""
+            # 清空上次处理的消息（防止重复）
+            self.last_processed_message = ""
+
+            print(f"[发送成功] {text[:60]}...")
 
         except Exception as e:
             print(f"[RPA Error] 发送消息失败: {e}")
-            # 发送失败时移除记录
-            if text in self.sent_messages:
-                self.sent_messages.remove(text)
+            # 发送失败时从队列移除
+            # 由于使用 deque，这条记录会自然被后续覆盖
 
     def focus_window(self):
         """激活千牛窗口"""
@@ -273,3 +391,19 @@ class QianniuRPA:
         """刷新窗口查找（窗口可能被关闭重开）"""
         if UIA_AVAILABLE:
             self._find_qianniu_window()
+
+    def clear_sent_queue(self):
+        """清空发送队列（用于重置状态）"""
+        self.sent_messages_queue.clear()
+        self.last_send_time = None
+        self.last_processed_message = ""
+        print("[状态] 已清空发送队列")
+
+    def get_stats(self) -> dict:
+        """获取当前状态统计（用于调试）"""
+        return {
+            "sent_queue_length": len(self.sent_messages_queue),
+            "last_send_time": self.last_send_time.strftime("%H:%M:%S") if self.last_send_time else None,
+            "time_window_elapsed": (datetime.now() - self.last_send_time).total_seconds() if self.last_send_time else None,
+            "agent_nickname": self.AGENT_NICKNAME,
+        }

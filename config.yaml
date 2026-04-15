@@ -5,6 +5,13 @@ llm:
   base_url: "https://api.jdcloud.com/v1"  # 京东云大模型API地址
   model: "jdcloud-model-name"  # 京东云模型名称
 
+# 客服配置（用于识别自己发送的消息）
+agent:
+  # 客服名称（在千牛窗口标题中显示的名字）
+  # 例如窗口标题是 "张三-接待中心"，则 name 应设为 "张三"
+  # 如果不设置，系统会自动从窗口标题提取
+  name: ""
+
 rpa:
   # 千牛聊天消息列表区域坐标（点击读取消息）
   chat_list_x: 1200
@@ -17,6 +24,8 @@ rpa:
   send_btn_y: 1076
   # 轮询间隔(秒)
   poll_interval: 3
+  # 自消息过滤窗口（发送后多久内的相同消息视为自己发的，单位秒）
+  self_message_window: 3
 
 knowledge:
   # Embedding 类型: "local" (本地HuggingFace) 或 "openai" (API)
