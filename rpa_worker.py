@@ -173,6 +173,10 @@ class QianniuRPA:
         if not raw_text or not raw_text.strip():
             return None
 
+        # === 调试：打印原始剪贴板内容 ===
+        print(f"[调试] 原始剪贴板内容 (前500字符):\n{raw_text[:500]}")
+        print(f"[调试] 原始剪贴板总行数: {len(raw_text.strip().split(chr(10)))}")
+
         lines = raw_text.strip().split('\n')
         customer_messages = []
 
@@ -184,10 +188,15 @@ class QianniuRPA:
         # 例如: "[梨花重放的小店95] 2024-04-14 10:30:00" 或 "[梨花重放的小店95] 10:30"
         sender_pattern = re.compile(r'^\[.+?\].*?\d{1,2}:\d{2}')
 
-        for line in lines:
+        # 调试：打印每行的匹配情况
+        for i, line in enumerate(lines):
             line_stripped = line.strip()
             if not line_stripped:
                 continue
+
+            # 调试：显示每行内容和是否匹配发送者模式
+            is_sender_line = sender_pattern.match(line_stripped)
+            print(f"[调试] 行{i}: '{line_stripped[:60]}' | 发送者行={bool(is_sender_line)}")
 
             # 检查是否是发送者标识行
             if sender_pattern.match(line_stripped):
