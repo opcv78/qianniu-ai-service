@@ -415,4 +415,35 @@ class QianniuRPA:
             "last_send_time": self.last_send_time.strftime("%H:%M:%S") if self.last_send_time else None,
             "time_window_elapsed": (datetime.now() - self.last_send_time).total_seconds() if self.last_send_time else None,
             "agent_nickname": self.AGENT_NICKNAME,
+            "coordinates": {
+                "chat_list": (self.chat_list_x, self.chat_list_y),
+                "input_box": (self.input_box_x, self.input_box_y),
+                "send_btn": (self.send_btn_x, self.send_btn_y),
+            },
         }
+
+    def test_coordinates(self):
+        """测试坐标是否正确 - 会依次点击各个区域并在剪贴板显示结果"""
+        print("\n[坐标测试] 开始测试...")
+        print(f"[坐标测试] 聊天列表坐标: ({self.chat_list_x}, {self.chat_list_y})")
+
+        # 点击聊天区域
+        print("[坐标测试] 点击聊天列表区域...")
+        self._click_at(self.chat_list_x, self.chat_list_y)
+        time.sleep(0.5)
+
+        # 全选并复制
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.3)
+        pyautogui.hotkey("ctrl", "c")
+        time.sleep(0.3)
+
+        clipboard_text = pyperclip.paste()
+        print(f"[坐标测试] 剪贴板内容 (前300字符):\n{clipboard_text[:300]}")
+        print(f"[坐标测试] 剪贴板总长度: {len(clipboard_text)} 字符")
+
+        print("\n[坐标测试] 如果上面显示的不是聊天记录，请调整 config.yaml 中的坐标:")
+        print("  - chat_list_x, chat_list_y: 聊天消息显示区域")
+        print("  - input_box_x, input_box_y: 输入框")
+        print("  - send_btn_x, send_btn_y: 发送按钮")
+        print("\n[坐标测试] 建议用截图工具测量千牛窗口中各区域的坐标")

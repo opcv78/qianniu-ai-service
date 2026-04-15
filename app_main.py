@@ -113,6 +113,13 @@ def main():
     import os
     os.chdir(base_path)
 
+    # 检查是否有测试参数
+    if len(sys.argv) > 1 and sys.argv[1] == "--test-coords":
+        print("[系统] 运行坐标测试模式...")
+        rpa = QianniuRPA()
+        rpa.test_coordinates()
+        return
+
     # 启动服务
     service = QianniuAIService()
     service.run()
