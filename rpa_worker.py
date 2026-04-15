@@ -1,5 +1,5 @@
 # RPA 自动化控制模块
-# 双重保险方案：内存对比法 + 剪贴板文本清洗法
+# 使用 UI Automation 直接读取控件，不依赖剪贴板
 
 import time
 import random
@@ -17,10 +17,11 @@ try:
     UIA_AVAILABLE = True
 except ImportError:
     UIA_AVAILABLE = False
+    print("[警告] uiautomation 未安装，请运行: pip install uiautomation")
 
 
 class QianniuRPA:
-    """千牛桌面客户端 RPA 控制器 - 双重保险消息识别"""
+    """千牛桌面客户端 RPA 控制器 - UI Automation 直接读取"""
 
     # 客服账号昵称特征（用于识别自己发送的消息）
     AGENT_NICKNAME = "[梨花重放的小店95]"
@@ -33,20 +34,18 @@ class QianniuRPA:
         pyautogui.FAILSAFE = True
         pyautogui.PAUSE = 0.1
 
-        # UI Automation 窗口缓存
+        # UI Automation 窗口和控件缓存
         self.qianniu_window = None
+        self.chat_list_control = None  # 聊天消息列表控件
 
-        # ========== 双重保险方案一：内存对比法 ==========
-        # 发送消息队列（使用 deque 自动限制长度）
+        # ========== 内存对比法 ==========
         self.sent_messages_queue: deque = deque(maxlen=100)
-        # 发送时间记录（用于时间窗口过滤）
         self.last_send_time: Optional[datetime] = None
-        # 自消息过滤时间窗口（秒）
         self.self_message_window = 5.0
 
         # ========== 状态追踪 ==========
         self.last_processed_message = ""
-        self.last_message_hash = ""
+        self.last_message_count = 0  # 上次消息总数
 
         if UIA_AVAILABLE:
             self._find_qianniu_window()
@@ -104,6 +103,142 @@ class QianniuRPA:
         except Exception as e:
             print(f"[UIA Error] 查找窗口失败: {e}")
             return False
+
+    # ========== UI Automation 直接读取消息 ==========
+
+    def _explore_controls(self, control=None, depth=0, max_depth=5):
+        """探测窗口控件结构（用于调试）"""
+        if control is None:
+            control = self.qianniu_window
+
+        if not control or depth > max_depth:
+            return
+
+        indent = "  " * depth
+        control_type = control.ControlTypeName
+        name = control.Name[:50] if control.Name else ""
+        class_name = control.ClassName or ""
+
+        # 打印控件信息
+        print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}'")
+
+        # 递归遍历子控件
+        try:
+            for child in control.GetChildren():
+                self._explore_controls(child, depth + 1, max_depth)
+        except:
+            pass
+
+    def _find_chat_list_control(self):
+        """查找聊天消息列表控件"""
+        if not self.qianniu_window:
+            return None
+
+        try:
+            # 千牛聊天消息通常在 List 或 Document 类型控件中
+            # 搜索可能的控件类型
+            for control in self.qianniu_window.GetChildren():
+                # 递归查找 List 控件
+                chat_list = self._find_control_by_type(control, "List")
+                if chat_list:
+                    self.chat_list_control = chat_list
+                    print(f"[UIA] 找到聊天列表控件: {chat_list.Name}")
+                    return chat_list
+
+                # 也尝试 Document 类型
+                chat_doc = self._find_control_by_type(control, "Document")
+                if chat_doc:
+                    self.chat_list_control = chat_doc
+                    print(f"[UIA] 找到聊天文档控件: {chat_doc.Name}")
+                    return chat_doc
+
+            print("[UIA] 未找到聊天列表控件")
+            return None
+        except Exception as e:
+            print(f"[UIA Error] 查找聊天控件失败: {e}")
+            return None
+
+    def _find_control_by_type(self, control, target_type: str, max_depth=3):
+        """递归查找指定类型的控件"""
+        if not control:
+            return None
+
+        try:
+            if control.ControlTypeName == target_type:
+                return control
+
+            if max_depth > 0:
+                for child in control.GetChildren():
+                    result = self._find_control_by_type(child, target_type, max_depth - 1)
+                    if result:
+                        return result
+        except:
+            pass
+
+        return None
+
+    def _read_messages_from_control(self) -> List[Dict]:
+        """直接从UI控件读取所有消息"""
+        messages = []
+
+        if not self.chat_list_control:
+            self._find_chat_list_control()
+
+        if not self.chat_list_control:
+            return messages
+
+        try:
+            # 遍历消息列表中的每个消息项
+            for item in self.chat_list_control.GetChildren():
+                try:
+                    # 获取消息项的文本内容
+                    text = item.Name or ""
+
+                    if not text.strip():
+                        continue
+
+                    # 尝试获取更多信息（时间、发送者等）
+                    item_type = item.ControlTypeName
+
+                    # 判断是否是客服发送的
+                    is_agent = self.AGENT_NICKNAME in text
+
+                    messages.append({
+                        "text": text.strip(),
+                        "is_agent": is_agent,
+                        "control_type": item_type,
+                    })
+
+                except Exception as e:
+                    continue
+
+            print(f"[UIA] 读取到 {len(messages)} 条消息")
+
+        except Exception as e:
+            print(f"[UIA Error] 读取消息失败: {e}")
+
+        return messages
+
+    def _get_latest_customer_message(self) -> Optional[str]:
+        """获取最新的一条客户消息"""
+        messages = self._read_messages_from_control()
+
+        if not messages:
+            return None
+
+        # 从后往前找第一条客户消息
+        for msg in reversed(messages):
+            if not msg["is_agent"]:
+                text = msg["text"]
+                # 检查是否已经处理过
+                if text != self.last_processed_message:
+                    # 检查是否在发送队列中
+                    if not self._is_in_sent_queue(text):
+                        print(f"[UIA] 提取客户消息: '{text[:50]}...'")
+                        self.last_processed_message = text
+                        return text
+
+        return None
 
     # ========== 方案一：内存对比法 ==========
 
@@ -352,8 +487,19 @@ class QianniuRPA:
     def read_latest_message(self) -> Optional[str]:
         """
         读取最新客户消息
-        使用双重保险方案过滤自己发送的消息
+        优先使用 UI Automation 直接读取控件，剪贴板作为备用
         """
+        # 方式1: UI Automation 直接读取（优先）
+        if UIA_AVAILABLE and self.qianniu_window:
+            message = self._get_latest_customer_message()
+            if message:
+                # 最终安全检查
+                if self._is_self_message(message):
+                    return None
+                print(f"[收到消息] {message[:60]}...")
+                return message
+
+        # 方式2: 剪贴板读取（备用，仅在 UI Automation 不可用时）
         message = self._read_via_clipboard()
 
         if message:
@@ -450,27 +596,30 @@ class QianniuRPA:
         }
 
     def test_coordinates(self):
-        """测试坐标是否正确 - 会依次点击各个区域并在剪贴板显示结果"""
-        print("\n[坐标测试] 开始测试...")
-        print(f"[坐标测试] 聊天列表坐标: ({self.chat_list_x}, {self.chat_list_y})")
+        """探测千牛窗口控件结构"""
+        print("\n[控件探测] 开始探测千牛窗口控件结构...")
+        print("[控件探测] 这将帮助我们找到聊天消息所在的控件")
 
-        # 点击聊天区域
-        print("[坐标测试] 点击聊天列表区域...")
-        self._click_at(self.chat_list_x, self.chat_list_y)
-        time.sleep(0.5)
+        if not UIA_AVAILABLE:
+            print("[控件探测] 错误: uiautomation 未安装")
+            return
 
-        # 全选并复制
-        pyautogui.hotkey("ctrl", "a")
-        time.sleep(0.3)
-        pyautogui.hotkey("ctrl", "c")
-        time.sleep(0.3)
+        # 查找窗口
+        if not self.qianniu_window:
+            self._find_qianniu_window()
 
-        clipboard_text = pyperclip.paste()
-        print(f"[坐标测试] 剪贴板内容 (前300字符):\n{clipboard_text[:300]}")
-        print(f"[坐标测试] 剪贴板总长度: {len(clipboard_text)} 字符")
+        if not self.qianniu_window:
+            print("[控件探测] 错误: 未找到千牛窗口")
+            return
 
-        print("\n[坐标测试] 如果上面显示的不是聊天记录，请调整 config.yaml 中的坐标:")
-        print("  - chat_list_x, chat_list_y: 聊天消息显示区域")
-        print("  - input_box_x, input_box_y: 输入框")
-        print("  - send_btn_x, send_btn_y: 发送按钮")
-        print("\n[坐标测试] 建议用截图工具测量千牛窗口中各区域的坐标")
+        print(f"\n[控件探测] 窗口名称: {self.qianniu_window.Name}")
+        print("[控件探测] 控件结构 (深度5层):")
+        print("=" * 60)
+
+        # 探测控件结构
+        self._explore_controls(self.qianniu_window, depth=0, max_depth=5)
+
+        print("=" * 60)
+        print("\n[控件探测] 请查看上面的控件结构")
+        print("[控件探测] 我们需要找到包含聊天消息的 List 或 Document 控件")
+        print("[控件探测] 将这些信息反馈给开发者以便调整读取逻辑")
