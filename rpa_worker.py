@@ -291,19 +291,39 @@ class QianniuRPA:
     def _read_via_clipboard(self) -> Optional[str]:
         """通过剪贴板读取消息（使用文本清洗法）"""
         try:
-            # 点击聊天区域
+            # 1. 先确保窗口聚焦
+            self.focus_window()
+            self._random_delay(0.3, 0.5)
+
+            # 2. 点击聊天区域
             self._click_at(self.chat_list_x, self.chat_list_y)
-            self._random_delay(0.2, 0.4)
+            self._random_delay(0.3, 0.5)
 
-            # 全选并复制
+            # 3. 尝试多种方式获取内容
+
+            # 方式1: Ctrl+A 全选 + Ctrl+C 复制
             pyautogui.hotkey("ctrl", "a")
-            self._random_delay(0.2, 0.4)
+            self._random_delay(0.3, 0.5)
             pyautogui.hotkey("ctrl", "c")
-            self._random_delay(0.2, 0.4)
+            self._random_delay(0.3, 0.5)
 
-            # 获取剪贴板内容
             clipboard_text = pyperclip.paste()
+
+            # 如果全选复制失败（内容太短或不是聊天记录），尝试双击选中
+            if not clipboard_text or len(clipboard_text) < 20 or "http" in clipboard_text.lower():
+                print("[剪贴板] Ctrl+A 复制失败，尝试双击选中...")
+                self._random_delay(0.2, 0.3)
+
+                # 双击选中最后一条消息
+                pyautogui.doubleClick(x=self.chat_list_x, y=self.chat_list_y)
+                self._random_delay(0.3, 0.5)
+                pyautogui.hotkey("ctrl", "c")
+                self._random_delay(0.3, 0.5)
+
+                clipboard_text = pyperclip.paste()
+
             if not clipboard_text:
+                print("[剪贴板] 无法获取任何内容")
                 return None
 
             # 使用文本清洗法提取客户消息
@@ -385,11 +405,18 @@ class QianniuRPA:
         """激活千牛窗口"""
         if UIA_AVAILABLE and self.qianniu_window:
             try:
+                # 先激活窗口（BringToFront 比 SetFocus 更可靠）
+                self.qianniu_window.SetActive()
                 self.qianniu_window.SetFocus()
                 self._random_delay(0.3, 0.5)
+                print("[UIA] 窗口已激活")
                 return
-            except:
-                pass
+            except Exception as e:
+                print(f"[UIA] 窗口激活失败: {e}")
+
+        # 备用方案：点击窗口标题栏区域激活窗口
+        # 尝试点击屏幕左上角附近（窗口标题栏通常在那里）
+        print("[RPA] 使用点击方式激活窗口")
         self._click_at(self.chat_list_x, self.chat_list_y)
 
     def get_poll_interval(self) -> int:
