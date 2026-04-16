@@ -1,13 +1,40 @@
 # 主程序入口
 
 import sys
-import time
-import keyboard
 from pathlib import Path
 
-from knowledge_base import FAQManager
-from llm_agent import CustomerServiceBrain
-from rpa_worker import QianniuRPA
+
+def main():
+    """入口函数"""
+    # 确保工作目录正确（exe 运行时）
+    if getattr(sys, "frozen", False):
+        # PyInstaller 打包后的路径
+        base_path = Path(sys.executable).parent
+    else:
+        # 开发环境路径
+        base_path = Path(__file__).parent
+
+    # 切换工作目录
+    import os
+    os.chdir(base_path)
+
+    # ===== 先检查参数，避免不必要的初始化 =====
+    if len(sys.argv) > 1 and sys.argv[1] == "--explore":
+        print("[系统] 运行控件探测模式...")
+        from rpa_worker import QianniuRPA
+        rpa = QianniuRPA()
+        rpa.test_coordinates()
+        return
+
+    # ===== 正常启动 =====
+    import time
+    import keyboard
+    from knowledge_base import FAQManager
+    from llm_agent import CustomerServiceBrain
+    from rpa_worker import QianniuRPA
+
+    service = QianniuAIService()
+    service.run()
 
 
 class QianniuAIService:
@@ -97,32 +124,6 @@ class QianniuAIService:
         self.running = False
         print("[系统] 已退出 AI 客服系统")
         sys.exit(0)
-
-
-def main():
-    """入口函数"""
-    # 确保工作目录正确（exe 运行时）
-    if getattr(sys, "frozen", False):
-        # PyInstaller 打包后的路径
-        base_path = Path(sys.executable).parent
-    else:
-        # 开发环境路径
-        base_path = Path(__file__).parent
-
-    # 切换工作目录
-    import os
-    os.chdir(base_path)
-
-    # 检查是否有测试参数
-    if len(sys.argv) > 1 and sys.argv[1] == "--explore":
-        print("[系统] 运行控件探测模式...")
-        rpa = QianniuRPA()
-        rpa.test_coordinates()
-        return
-
-    # 启动服务
-    service = QianniuAIService()
-    service.run()
 
 
 if __name__ == "__main__":
