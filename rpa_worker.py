@@ -487,26 +487,25 @@ class QianniuRPA:
     def read_latest_message(self) -> Optional[str]:
         """
         读取最新客户消息
-        优先使用 UI Automation 直接读取控件，剪贴板作为备用
+        只使用 UI Automation 直接读取控件
         """
-        # 方式1: UI Automation 直接读取（优先）
-        if UIA_AVAILABLE and self.qianniu_window:
-            message = self._get_latest_customer_message()
-            if message:
-                # 最终安全检查
-                if self._is_self_message(message):
-                    return None
-                print(f"[收到消息] {message[:60]}...")
-                return message
+        if not UIA_AVAILABLE:
+            print("[错误] uiautomation 未安装，无法读取消息")
+            return None
 
-        # 方式2: 剪贴板读取（备用，仅在 UI Automation 不可用时）
-        message = self._read_via_clipboard()
+        if not self.qianniu_window:
+            self._find_qianniu_window()
 
+        if not self.qianniu_window:
+            print("[错误] 未找到千牛窗口")
+            return None
+
+        # 直接从控件读取
+        message = self._get_latest_customer_message()
         if message:
-            # 最终安全检查
+            # 检查是否是自己发的
             if self._is_self_message(message):
                 return None
-
             print(f"[收到消息] {message[:60]}...")
             return message
 
