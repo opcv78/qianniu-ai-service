@@ -119,8 +119,20 @@ class QianniuRPA:
         name = control.Name[:50] if control.Name else ""
         class_name = control.ClassName or ""
 
-        # 打印控件信息
-        print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}'")
+        # 尝试获取 LegacyIAccessible 信息（对CEF浏览器有用）
+        try:
+            legacy = control.LegacyIAccessible
+            if legacy:
+                legacy_name = legacy.Name[:50] if legacy.Name else ""
+                legacy_value = legacy.Value[:50] if hasattr(legacy, 'Value') and legacy.Value else ""
+                if legacy_name or legacy_value:
+                    print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}' Legacy.Name='{legacy_name}' Legacy.Value='{legacy_value}'")
+                else:
+                    print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}'")
+            else:
+                print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}'")
+        except Exception as e:
+            print(f"{indent}[{control_type}] Name='{name}' Class='{class_name}' (LegacyIAccessible error: {str(e)[:30]})")
 
         # 递归遍历子控件
         try:
@@ -181,36 +193,61 @@ class QianniuRPA:
         """直接从UI控件读取所有消息"""
         messages = []
 
+        # 先查找 Document 控件（CEF 浏览器内容）
         if not self.chat_list_control:
             self._find_chat_list_control()
+
+        # 如果没找到 List，尝试找 Document（CEF 浏览器）
+        if not self.chat_list_control and self.qianniu_window:
+            doc = self._find_control_by_type(self.qianniu_window, "Document", max_depth=5)
+            if doc:
+                self.chat_list_control = doc
+                print(f"[UIA] 找到 Document 控件: {doc.Name}")
 
         if not self.chat_list_control:
             return messages
 
         try:
-            # 遍历消息列表中的每个消息项
-            for item in self.chat_list_control.GetChildren():
-                try:
-                    # 获取消息项的文本内容
-                    text = item.Name or ""
+            # 尝试读取 LegacyIAccessible 内容（对CEF浏览器有用）
+            try:
+                legacy = self.chat_list_control.LegacyIAccessible
+                if legacy:
+                    # 尝试获取子元素
+                    child_count = legacy.ChildCount if hasattr(legacy, 'ChildCount') else 0
+                    print(f"[UIA] LegacyIAccessible ChildCount: {child_count}")
 
-                    if not text.strip():
+                    # 遍历 LegacyIAccessible 子元素
+                    for i in range(min(child_count, 50)):  # 最多50个子元素
+                        try:
+                            child = legacy.GetChild(i)
+                            if child:
+                                text = child.Name or ""
+                                if text.strip():
+                                    is_agent = self.AGENT_NICKNAME in text
+                                    messages.append({
+                                        "text": text.strip(),
+                                        "is_agent": is_agent,
+                                    })
+                        except:
+                            continue
+            except Exception as e:
+                print(f"[UIA] LegacyIAccessible 访问失败: {e}")
+
+            # 如果 LegacyIAccessible 没内容，尝试普通方式
+            if not messages:
+                for item in self.chat_list_control.GetChildren():
+                    try:
+                        text = item.Name or ""
+                        if not text.strip():
+                            continue
+                        is_agent = self.AGENT_NICKNAME in text
+                        messages.append({
+                            "text": text.strip(),
+                            "is_agent": is_agent,
+                            "control_type": item.ControlTypeName,
+                        })
+                    except:
                         continue
-
-                    # 尝试获取更多信息（时间、发送者等）
-                    item_type = item.ControlTypeName
-
-                    # 判断是否是客服发送的
-                    is_agent = self.AGENT_NICKNAME in text
-
-                    messages.append({
-                        "text": text.strip(),
-                        "is_agent": is_agent,
-                        "control_type": item_type,
-                    })
-
-                except Exception as e:
-                    continue
 
             print(f"[UIA] 读取到 {len(messages)} 条消息")
 
