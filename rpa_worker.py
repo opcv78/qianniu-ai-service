@@ -612,13 +612,29 @@ class QianniuRPA:
             return
 
         print(f"\n[控件探测] 窗口名称: {self.qianniu_window.Name}")
-        print("[控件探测] 控件结构 (深度5层):")
+        print("[控件探测] 控件结构 (深度8层):")
         print("=" * 60)
 
-        # 探测控件结构
-        self._explore_controls(self.qianniu_window, depth=0, max_depth=5)
+        # 探测控件结构（增加深度到8层）
+        self._explore_controls(self.qianniu_window, depth=0, max_depth=8)
 
         print("=" * 60)
-        print("\n[控件探测] 请查看上面的控件结构")
-        print("[控件探测] 我们需要找到包含聊天消息的 List 或 Document 控件")
-        print("[控件探测] 将这些信息反馈给开发者以便调整读取逻辑")
+
+        # 特别查找 Document 控件并尝试读取内容
+        print("\n[控件探测] 尝试读取 Document 控件内容...")
+        doc = self._find_control_by_type(self.qianniu_window, "Document")
+        if doc:
+            print(f"[控件探测] 找到 Document: Name='{doc.Name}'")
+            # 尝试获取文本
+            try:
+                text = doc.Name
+                print(f"[控件探测] Document.Name: {text}")
+
+                # 尝试获取更多子控件
+                print("[控件探测] Document 子控件:")
+                for child in doc.GetChildren():
+                    self._explore_controls(child, depth=0, max_depth=5)
+            except Exception as e:
+                print(f"[控件探测] 读取 Document 失败: {e}")
+
+        print("\n[控件探测] 请将以上信息反馈给开发者")
