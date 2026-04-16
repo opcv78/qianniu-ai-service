@@ -26,6 +26,20 @@ def main():
         rpa.test_coordinates()
         return
 
+    # ===== 正常启动，但先探测控件 =====
+    from rpa_worker import QianniuRPA
+
+    print("[系统] 正在初始化 AI 客服系统...")
+    print("[系统] 先探测千牛控件结构...")
+
+    rpa = QianniuRPA()
+    # 先运行一次控件探测
+    rpa.test_coordinates()
+
+    print("\n[系统] 控件探测完成，如上面显示的控件结构中没有聊天列表，请反馈给开发者")
+    print("[系统] 按 Enter 键继续启动，或按 Ctrl+C 退出...")
+    input()
+
     # ===== 正常启动 =====
     from knowledge_base import FAQManager
     from llm_agent import CustomerServiceBrain
